@@ -27,31 +27,62 @@ async function run() {
     const database = client.db(process.env.DATABASE_NAME);
     const productsCollections = database.collection("products");
 
-
-
-
-
     // here we will create a get api to get all the products from the database
-
 
     app.get("/products", async (req, res) => {
       const cursor = await productsCollections.find({}).toArray();
       res.send(cursor);
     });
 
-    // nwe arrival products api
-    app.get("/new-arrivals", async (req, res) => {
-      
-      const cursor = await productsCollections.find({isNewArrival:true}).toArray();
-      res.send(cursor);
+    // app.get("/home-collections", async (req, res) => {
+    //   try {
+
+    //     const page = parseInt(req.query.page) || 1;
+    //     const limit = parseInt(req.query.limit) || 8;
+
+    //     const skip = (page - 1) * limit;
+
+    //     const total = await productsCollections.countDocuments();
+
+    //     const products = await productsCollections
+    //       .find()
+    //       .skip(skip)
+    //       .limit(limit)
+    //       .toArray();
+
+    //     res.send({
+    //       products,
+    //       total,
+    //       page,
+    //       totalPages: Math.ceil(total / limit),
+    //     });
+    //   } catch (error) {
+    //     console.log(error);
+    //     res.status(500).send({ message: "Server error" });
+    //   }
+    // });
+
+    //home collections
+
+    app.get("/home-collections", async (req, res) => {
+      const { gender } = req.query;
+
+      if (!gender || gender === "all") {
+        const allData = await productsCollections.find({}).toArray();
+        return res.send(allData); 
+      }
+
+      const result = await productsCollections.find({ gender }).toArray();
+      res.send(result);
     });
 
-
-
-
-
-
-
+    // nwe arrival products api
+    app.get("/new-arrivals", async (req, res) => {
+      const cursor = await productsCollections
+        .find({ isNewArrival: true })
+        .toArray();
+      res.send(cursor);
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
