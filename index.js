@@ -3,8 +3,12 @@ const app = express();
 const port = 3000;
 const cors = require("cors");
 app.use(cors());
-
 require("dotenv").config();
+app.use(express.json());
+
+const users = [];
+
+
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASSWORD}@cluster0.zgnatwl.mongodb.net/?appName=Cluster0`;
 
@@ -27,6 +31,21 @@ async function run() {
     const database = client.db(process.env.DATABASE_NAME);
     const productsCollections = database.collection("products");
 
+    app.post("/register", async (req, res) => {
+      const { email, password,name ,createdAt} = req.body; 
+
+      console.log(email, password ,createdAt);
+
+      try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        users.push({ email, password: hashedPassword });
+
+        res.send({ message: "User registered" });
+      } catch (error) {
+        res.status(500).send({ message: "Error registering user" });
+      }
+    });
     // here we will create a get api to get all the products from the database
 
     app.get("/products", async (req, res) => {
@@ -37,8 +56,10 @@ async function run() {
     // collection page api
     app.get("/products-collections", async (req, res) => {
       const { category, size } = req.query;
-       if (size) {
-        const allData = await productsCollections.find({"inventory.size": size,}).toArray();
+      if (size) {
+        const allData = await productsCollections
+          .find({ "inventory.size": size })
+          .toArray();
         return res.send(allData);
       }
       if (!category || category === "all") {
@@ -46,10 +67,12 @@ async function run() {
         return res.send(allData);
       }
       if (size) {
-        const allData = await productsCollections.find({"inventory.size": size,}).toArray();
+        const allData = await productsCollections
+          .find({ "inventory.size": size })
+          .toArray();
         return res.send(allData);
       }
-      
+
       if (category === "MEN" && !size) {
         const menData = await productsCollections
           .find({ gender: "MEN" })
@@ -74,16 +97,16 @@ async function run() {
         return res.send(menData);
       }
 
-       if (category === "WOMEN" && size) {
+      if (category === "WOMEN" && size) {
         const menData = await productsCollections
-          .find({ gender: "WOMEN" ,"inventory.size": size, })
+          .find({ gender: "WOMEN", "inventory.size": size })
           .toArray();
 
         return res.send(menData);
       }
       if (category && size) {
         const menData = await productsCollections
-          .find({ category,"inventory.size": size, })
+          .find({ category, "inventory.size": size })
           .toArray();
 
         return res.send(menData);
