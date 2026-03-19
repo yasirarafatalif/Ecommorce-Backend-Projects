@@ -12,9 +12,9 @@ app.use(cookieParser());
 
 app.use(
   cors({
-    origin: ["http://localhost:5173"], 
-    credentials: true, 
-  })
+    origin: ["http://localhost:5173"],
+    credentials: true,
+  }),
 );
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
@@ -33,15 +33,15 @@ const verifyToken = (req, res, next) => {
   try {
     const token =
       req.headers.authorization?.split(" ")[1] || req.cookies?.token;
+    // console.log("after chechk token", token);
 
     if (!token) {
       return res.status(401).send({ message: "No token provided" });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log(decoded)
 
-    req.user = decoded; 
+    req.user = decoded;
 
     next();
   } catch (error) {
@@ -50,9 +50,7 @@ const verifyToken = (req, res, next) => {
 };
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
-    // Send a ping to confirm a successful connection
 
     // here we will create a database and collection and add some data to it
     const database = client.db(process.env.DATABASE_NAME);
@@ -126,7 +124,8 @@ async function run() {
         );
         res.cookie("token", token, {
           httpOnly: true,
-          secure: true,
+          secure: true, 
+          sameSite: "none",
         });
 
         res.send({
@@ -139,31 +138,22 @@ async function run() {
       }
     });
 
-app.get("/profile", verifyToken, async (req, res) => {
-  try {
-    const user = await usersCollections.findOne(
-      { email: req.user.email },
-      { projection: { password: 0 } }
-    );
+    app.get("/profile", verifyToken, async (req, res) => {
+      try {
+        const user = await usersCollections.findOne(
+          { email: req.user.email },
+          { projection: { password: 0 } },
+        );
 
-    if (!user) {
-      return res.status(404).send({ message: "User not found" });
-    }
+        if (!user) {
+          return res.status(404).send({ message: "User not found" });
+        }
 
-    res.send(user);
-  } catch (error) {
-    res.status(500).send({ message: "Error fetching profile" });
-  }
-});
-
-
-
-
-
-
-
-
-
+        res.send(user);
+      } catch (error) {
+        res.status(500).send({ message: "Error fetching profile" });
+      }
+    });
 
     // here we will create a get api to get all the products from the database
 
