@@ -2,12 +2,20 @@ const express = require("express");
 const app = express();
 const port = 3000;
 const cors = require("cors");
-app.use(cors());
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
+
 require("dotenv").config();
 app.use(express.json());
+app.use(cookieParser());
 
-const users = [];
-
+app.use(
+  cors({
+    origin: ["http://localhost:5173"], 
+    credentials: true, 
+  })
+);
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASSWORD}@cluster0.zgnatwl.mongodb.net/?appName=Cluster0`;
@@ -21,6 +29,25 @@ const client = new MongoClient(uri, {
   },
 });
 
+const verifyToken = (req, res, next) => {
+  try {
+    const token =
+      req.headers.authorization?.split(" ")[1] || req.cookies?.token;
+
+    if (!token) {
+      return res.status(401).send({ message: "No token provided" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log(decoded)
+
+    req.user = decoded; 
+
+    next();
+  } catch (error) {
+    return res.status(401).send({ message: "Invalid token" });
+  }
+};
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -30,22 +57,114 @@ async function run() {
     // here we will create a database and collection and add some data to it
     const database = client.db(process.env.DATABASE_NAME);
     const productsCollections = database.collection("products");
+    const usersCollections = database.collection("users");
 
     app.post("/register", async (req, res) => {
-      const { email, password,name ,createdAt} = req.body; 
-
-      console.log(email, password ,createdAt);
+      const { email, password, name } = req.body;
 
       try {
+        // validation
+        if (!email || !password || !name) {
+          return res.status(400).send({ message: "All fields are required" });
+        }
+
+        // check existing user
+        const existingUser = await usersCollections.findOne({ email });
+        if (existingUser) {
+          return res.send({ message: "User already exists" });
+        }
+
+        // hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        users.push({ email, password: hashedPassword });
+        const usersData = {
+          name,
+          email,
+          password: hashedPassword,
+          role: "user",
+          createdAt: new Date(),
+        };
 
-        res.send({ message: "User registered" });
+        const userInsert = await usersCollections.insertOne(usersData);
+        res.send({
+          userInsert,
+          message: "User registered successfully",
+        });
       } catch (error) {
+        console.log(error);
         res.status(500).send({ message: "Error registering user" });
       }
     });
+
+    app.post("/login", async (req, res) => {
+      const { email, password } = req.body;
+
+      try {
+        // validation
+        if (!email || !password) {
+          return res.send({ message: "Email and password required" });
+        }
+
+        const user = await usersCollections.findOne({ email });
+
+        if (!user) {
+          return res.send({ message: "User not found" });
+        }
+
+        // password compare
+        const isMatch = await bcrypt.compare(password, user.password);
+
+        if (!isMatch) {
+          return res.send({ message: "Wrong password" });
+        }
+
+        // JWT token generate
+        const token = jwt.sign(
+          { email: user.email, id: user._id },
+          process.env.JWT_SECRET,
+          { expiresIn: "1d" },
+        );
+        res.cookie("token", token, {
+          httpOnly: true,
+          secure: true,
+        });
+
+        res.send({
+          message: "Login successful",
+          token,
+        });
+      } catch (error) {
+        console.log(error);
+        res.status(500).send({ message: "Login error" });
+      }
+    });
+
+app.get("/profile", verifyToken, async (req, res) => {
+  try {
+    const user = await usersCollections.findOne(
+      { email: req.user.email },
+      { projection: { password: 0 } }
+    );
+
+    if (!user) {
+      return res.status(404).send({ message: "User not found" });
+    }
+
+    res.send(user);
+  } catch (error) {
+    res.status(500).send({ message: "Error fetching profile" });
+  }
+});
+
+
+
+
+
+
+
+
+
+
     // here we will create a get api to get all the products from the database
 
     app.get("/products", async (req, res) => {
