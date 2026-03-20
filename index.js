@@ -57,6 +57,8 @@ async function run() {
     const productsCollections = database.collection("products");
     const usersCollections = database.collection("users");
 
+    // user register api
+
     app.post("/register", async (req, res) => {
       const { email, password, name } = req.body;
 
@@ -94,6 +96,8 @@ async function run() {
       }
     });
 
+    // user log in api
+
     app.post("/login", async (req, res) => {
       const { email, password } = req.body;
 
@@ -124,7 +128,7 @@ async function run() {
         );
         res.cookie("token", token, {
           httpOnly: true,
-          secure: true, 
+          secure: true,
           sameSite: "none",
         });
 
@@ -138,6 +142,7 @@ async function run() {
       }
     });
 
+    // view profile get api
     app.get("/profile", verifyToken, async (req, res) => {
       try {
         const user = await usersCollections.findOne(
@@ -153,6 +158,17 @@ async function run() {
       } catch (error) {
         res.status(500).send({ message: "Error fetching profile" });
       }
+    });
+
+    // user log out api
+    app.post("/logout", (req, res) => {
+      res.clearCookie("token", {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+      });
+
+      res.send({ message: "Logged out successfully" });
     });
 
     // here we will create a get api to get all the products from the database
