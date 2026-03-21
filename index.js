@@ -56,6 +56,7 @@ async function run() {
     const database = client.db(process.env.DATABASE_NAME);
     const productsCollections = database.collection("products");
     const usersCollections = database.collection("users");
+    const ordersCollections = database.collection("orders");
 
     // user register api
 
@@ -314,6 +315,105 @@ async function run() {
         .find({ isNewArrival: true })
         .toArray();
       res.send(cursor);
+    });
+
+    // add to cart api
+
+    app.post("/orders", async (req, res) => {
+      const body = req.body;
+      try {
+        const {
+          productId,
+          buyerEmail,
+          totalQuantity,
+          size,
+          productName,
+          productCategory,
+          status,
+          deliveryStatus,
+          paymentStatus,
+          productPrice,
+          productType,
+        } = body;
+        if (!productId || !buyerEmail || !totalQuantity || !size) {
+          return res.send({
+            success: false,
+            message: "All fields are required",
+          });
+        }
+
+        const aviableProduct = await productsCollections.findOne({
+          _id: new ObjectId(productId),
+        });
+        if (!aviableProduct) {
+          return res.send({
+            success: false,
+            message: "This Products Not Aviable Right Now",
+          });
+        }
+        const stockProduct = aviableProduct?.stock;
+        if (stockProduct < totalQuantity) {
+          return res.send({
+            success: false,
+            message: "Right Now This Quantity Not Aviable",
+          });
+        }
+
+        const sizeInventory = aviableProduct?.inventory?.find(
+          (item) => item.size === size,
+        );
+
+        if (!sizeInventory) {
+          return res.status(400).send({
+            success: false,
+            message: "Selected size not available",
+          });
+        }
+
+        if (sizeInventory?.quantity < totalQuantity) {
+          return res.status(400).send({
+            success: false,
+            message: "Not enough stock for this size",
+          });
+        }
+
+        const order = {
+          productId,
+          buyerEmail,
+          totalQuantity,
+          size,
+          productName,
+          productCategory,
+          productPrice,
+          productType,
+          status: status || "Pending",
+          deliveryStatus: deliveryStatus || "Pending",
+          paymentStatus: paymentStatus || "Unpaid",
+          cardAt: new Date(),
+        };
+
+        //  Insert order
+        const result = await ordersCollections.insertOne(order);
+
+        //Update stock
+        await productsCollections.updateOne(
+          { _id: new ObjectId(productId), "inventory.size": size },
+          {
+            $inc: {
+              stock: -totalQuantity,
+              "inventory.$.quantity": -totalQuantity,
+            },
+          },
+        );
+
+        res.send({
+          success: true,
+          message: "Order placed successfully",
+          orderId: result.insertedId,
+        });
+      } catch (error) {
+        console.log(error);
+      }
     });
 
     await client.db("admin").command({ ping: 1 });
