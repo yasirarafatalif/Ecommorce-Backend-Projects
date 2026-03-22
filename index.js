@@ -58,6 +58,7 @@ async function run() {
     const usersCollections = database.collection("users");
     const ordersCollections = database.collection("orders");
     const cartCollections = database.collection("cart");
+    const wishlistCollections = database.collection("wishlist");
 
     // user register api
 
@@ -67,7 +68,7 @@ async function run() {
       try {
         // validation
         if (!email || !password || !name) {
-          return res.status(400).send({ message: "All fields are required" });
+          return res.status(401).send({ message: "All fields are required" });
         }
 
         // check existing user
@@ -358,7 +359,7 @@ async function run() {
       }
     });
 
-    
+    // cart id price & quantity update api here
     app.patch("/cart/:id", async (req, res) => {
       const id = req.params.id;
       const { quantity } = req.body;
@@ -420,6 +421,15 @@ async function run() {
             message: "All fields are required",
           });
         }
+        const exitsProduct = await cartCollections.findOne({
+          productId,
+        });
+        if (exitsProduct) {
+          return res.send({
+            success: false,
+            message: "This Products Is Already You Add To Cart ",
+          });
+        }
 
         const aviableProduct = await productsCollections.findOne({
           _id: new ObjectId(productId),
@@ -443,14 +453,14 @@ async function run() {
         );
 
         if (!sizeInventory) {
-          return res.status(400).send({
+          return res.status(401).send({
             success: false,
             message: "Selected size not available",
           });
         }
 
         if (sizeInventory?.quantity < totalQuantity) {
-          return res.status(400).send({
+          return res.status(401).send({
             success: false,
             message: "Not enough stock for this size",
           });
@@ -504,6 +514,59 @@ async function run() {
         });
       } catch (error) {
         console.log(error);
+      }
+    });
+
+    // here is wishlist api
+
+    app.post("/wishlist", async (req, res) => {
+      const { productId, userEmail } = req.body;
+
+      try {
+        const userData = {
+          productId,
+          userEmail,
+          wishlistAt: new Date(),
+        };
+        const exitsProducts = await wishlistCollections.findOne({
+          productId,
+          userEmail,
+        });
+        if (exitsProducts) {
+          return res.send({
+            success: false,
+            message: "This Product You Have Alreday Added In Wishlist",
+          });
+        }
+
+        const result = await wishlistCollections.insertOne(userData);
+        res.send({
+          success: true,
+          result,
+          message: "Added In Wishlist",
+        });
+      } catch (error) {
+        res.status(401).send({ message: "Server error", error });
+      }
+    });
+
+    // wisth list get api
+    app.get("/wishlist-show", async (req, res) => {
+      const { email } = req.query;
+      console.log(email)
+
+      try {
+        if (!email) {
+          return res.status(400).send({ message: "Email required" });
+        }
+
+        const findWishlist = await wishlistCollections
+          .find({ userEmail: email })
+          .toArray();
+
+        res.send(findWishlist); 
+      } catch (error) {
+        res.status(500).send({ message: "Server error", error });
       }
     });
 
