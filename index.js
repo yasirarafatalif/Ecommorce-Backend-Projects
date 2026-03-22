@@ -57,6 +57,7 @@ async function run() {
     const productsCollections = database.collection("products");
     const usersCollections = database.collection("users");
     const ordersCollections = database.collection("orders");
+    const cartCollections = database.collection("cart");
 
     // user register api
 
@@ -317,7 +318,21 @@ async function run() {
       res.send(cursor);
     });
 
+
+
+
+    //cart data show 
+    app.get("/cart", async (req,res)=>{
+      const {email}= req.query
+     const result = await cartCollections.find({buyerEmail: email}).toArray();
+      res.send(result)
+
+    })
+
     // add to cart api
+
+
+
 
     app.post("/orders", async (req, res) => {
       const body = req.body;
@@ -393,7 +408,7 @@ async function run() {
         };
 
         //  Insert order
-        const result = await ordersCollections.insertOne(order);
+        const result = await cartCollections.insertOne(order);
 
         //Update stock
         await productsCollections.updateOne(
@@ -415,6 +430,20 @@ async function run() {
         console.log(error);
       }
     });
+
+    // chechkout api
+    app.get('/checkout', async (req,res)=>{
+      try {
+
+        res.send({
+        success: true
+      })
+        
+      } catch (error) {
+        console.log(error)
+        
+      }
+    })
 
     await client.db("admin").command({ ping: 1 });
     console.log(
