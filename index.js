@@ -318,39 +318,84 @@ async function run() {
       res.send(cursor);
     });
 
-
-
-
-    //cart data show 
-    app.get("/cart", async (req,res)=>{
-      const {email}= req.query
-     const result = await cartCollections.find({buyerEmail: email}).toArray();
-      res.send(result)
-
-    })
+    //cart data show
+    app.get("/cart", async (req, res) => {
+      const { email } = req.query;
+      try {
+        const result = await cartCollections
+          .find({ buyerEmail: email })
+          .toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Server error", error });
+      }
+    });
 
     // cartpage get api
-    app.get("/cartpage", async (req,res)=>{
-      const {email}= req.query
-     const result = await cartCollections.find({buyerEmail: email}).toArray();
-      res.send(result)
-
-    })
+    app.get("/cartpage", async (req, res) => {
+      const { email } = req.query;
+      try {
+        const result = await cartCollections
+          .find({ buyerEmail: email })
+          .toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Server error", error });
+      }
+    });
 
     // cart page delete api
-    app.delete("/cartpage", async (req,res)=>{
-      const {id} = req.query
-      const data = await cartCollections.deleteOne({_id: new ObjectId(id)})
-      res.send({
-        success:true,
-        data
-      })
-      })
+    app.delete("/cartpage", async (req, res) => {
+      const { id } = req.query;
+      try {
+        const data = await cartCollections.deleteOne({ _id: new ObjectId(id) });
+        res.send({
+          success: true,
+          data,
+        });
+      } catch (error) {
+        res.status(401).send({ message: "Server error", error });
+      }
+    });
+
+    
+    app.patch("/cart/:id", async (req, res) => {
+      const id = req.params.id;
+      const { quantity } = req.body;
+
+      try {
+        const findData = await cartCollections.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!findData) {
+          return res.send({ success: false, message: "Item not found" });
+        }
+
+        const singlePrice = findData.productPrice / findData.totalQuantity;
+
+        const newQty = Math.max(1, quantity);
+
+        const result = await cartCollections.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              totalQuantity: newQty,
+              productPrice: singlePrice * newQty,
+            },
+          },
+        );
+
+        res.send({
+          success: true,
+          result,
+        });
+      } catch (error) {
+        res.status(401).send({ message: "Server error", error });
+      }
+    });
 
     // add to cart api
-
-
-
 
     app.post("/orders", async (req, res) => {
       const body = req.body;
@@ -367,7 +412,7 @@ async function run() {
           paymentStatus,
           productPrice,
           productType,
-          img
+          img,
         } = body;
         if (!productId || !buyerEmail || !totalQuantity || !size) {
           return res.send({
@@ -452,18 +497,15 @@ async function run() {
     });
 
     // chechkout api
-    app.get('/checkout', async (req,res)=>{
+    app.get("/checkout", async (req, res) => {
       try {
-
         res.send({
-        success: true
-      })
-        
+          success: true,
+        });
       } catch (error) {
-        console.log(error)
-        
+        console.log(error);
       }
-    })
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
