@@ -520,8 +520,7 @@ async function run() {
     // here is wishlist api
 
     app.post("/wishlist", async (req, res) => {
-      const { productId, userEmail, productPrice, productImg, productTitle } =
-        req.body;
+      const { productId, userEmail, productPrice, productImg, productTitle,productCategory } =req.body;
 
       try {
         const userData = {
@@ -533,6 +532,7 @@ async function run() {
           productCategory,
           wishlistAt: new Date(),
         };
+        console.log(userData)
         const exitsProducts = await wishlistCollections.findOne({
           productId,
           userEmail,
@@ -576,23 +576,29 @@ async function run() {
 
     // wish delete api
     app.delete("/wishlist-data", async (req, res) => {
-      const { id, email } = req.query;
-      console.log(id);
+      const { id, email, all } = req.query;
 
       try {
-        if (!id || !email) {
-          return res.status(400).send({ message: "ID and email required" });
+        if (!email) {
+          return res.status(400).send({ message: "Email required" });
         }
 
-        const result = await wishlistCollections.deleteOne({
-          _id: new ObjectId(id),
-          userEmail: email,
-        });
-        
+        let result;
+
+        if (all === "true") {
+          result = await wishlistCollections.deleteMany({
+            userEmail: email,
+          });
+        } else {
+          result = await wishlistCollections.deleteOne({
+            _id: new ObjectId(id),
+            userEmail: email,
+          });
+        }
 
         res.send({
           deletedCount: result.deletedCount,
-          message: "Item removed from wishlist",
+          message: "Wishlist updated",
         });
       } catch (error) {
         res.status(500).send({ message: "Server error", error });
