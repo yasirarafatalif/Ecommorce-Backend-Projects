@@ -520,12 +520,17 @@ async function run() {
     // here is wishlist api
 
     app.post("/wishlist", async (req, res) => {
-      const { productId, userEmail } = req.body;
+      const { productId, userEmail, productPrice, productImg, productTitle } =
+        req.body;
 
       try {
         const userData = {
           productId,
           userEmail,
+          productPrice,
+          productImg,
+          productTitle,
+          productCategory,
           wishlistAt: new Date(),
         };
         const exitsProducts = await wishlistCollections.findOne({
@@ -551,20 +556,62 @@ async function run() {
     });
 
     // wisth list get api
-    app.get("/wishlist-show", async (req, res) => {
+    app.get("/wishlist-data", async (req, res) => {
       const { email } = req.query;
-      console.log(email)
 
       try {
         if (!email) {
-          return res.status(400).send({ message: "Email required" });
+          return res.status(401).send({ message: "Email required" });
         }
 
         const findWishlist = await wishlistCollections
           .find({ userEmail: email })
           .toArray();
 
-        res.send(findWishlist); 
+        res.send(findWishlist);
+      } catch (error) {
+        res.status(500).send({ message: "Server error", error });
+      }
+    });
+
+    // wish delete api
+    app.delete("/wishlist-data", async (req, res) => {
+      const { id, email } = req.query;
+      console.log(id);
+
+      try {
+        if (!id || !email) {
+          return res.status(400).send({ message: "ID and email required" });
+        }
+
+        const result = await wishlistCollections.deleteOne({
+          _id: new ObjectId(id),
+          userEmail: email,
+        });
+        
+
+        res.send({
+          deletedCount: result.deletedCount,
+          message: "Item removed from wishlist",
+        });
+      } catch (error) {
+        res.status(500).send({ message: "Server error", error });
+      }
+    });
+
+    app.get("/wishlist-show", async (req, res) => {
+      const { email } = req.query;
+
+      try {
+        if (!email) {
+          return res.status(401).send({ message: "Email required" });
+        }
+
+        const findWishlist = await wishlistCollections
+          .find({ userEmail: email })
+          .toArray();
+
+        res.send(findWishlist);
       } catch (error) {
         res.status(500).send({ message: "Server error", error });
       }
