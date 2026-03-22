@@ -329,6 +329,24 @@ async function run() {
 
     })
 
+    // cartpage get api
+    app.get("/cartpage", async (req,res)=>{
+      const {email}= req.query
+     const result = await cartCollections.find({buyerEmail: email}).toArray();
+      res.send(result)
+
+    })
+
+    // cart page delete api
+    app.delete("/cartpage", async (req,res)=>{
+      const {id} = req.query
+      const data = await cartCollections.deleteOne({_id: new ObjectId(id)})
+      res.send({
+        success:true,
+        data
+      })
+      })
+
     // add to cart api
 
 
@@ -349,6 +367,7 @@ async function run() {
           paymentStatus,
           productPrice,
           productType,
+          img
         } = body;
         if (!productId || !buyerEmail || !totalQuantity || !size) {
           return res.send({
@@ -400,6 +419,7 @@ async function run() {
           productName,
           productCategory,
           productPrice,
+          img,
           productType,
           status: status || "Pending",
           deliveryStatus: deliveryStatus || "Pending",
