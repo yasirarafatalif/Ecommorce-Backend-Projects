@@ -398,7 +398,7 @@ async function run() {
 
     // add to cart api
 
-    app.post("/orders", async (req, res) => {
+    app.post("/add-to-cart", async (req, res) => {
       const body = req.body;
       try {
         const {
@@ -520,7 +520,14 @@ async function run() {
     // here is wishlist api
 
     app.post("/wishlist", async (req, res) => {
-      const { productId, userEmail, productPrice, productImg, productTitle,productCategory } =req.body;
+      const {
+        productId,
+        userEmail,
+        productPrice,
+        productImg,
+        productTitle,
+        productCategory,
+      } = req.body;
 
       try {
         const userData = {
@@ -532,7 +539,7 @@ async function run() {
           productCategory,
           wishlistAt: new Date(),
         };
-        console.log(userData)
+        console.log(userData);
         const exitsProducts = await wishlistCollections.findOne({
           productId,
           userEmail,
@@ -620,6 +627,113 @@ async function run() {
         res.send(findWishlist);
       } catch (error) {
         res.status(500).send({ message: "Server error", error });
+      }
+    });
+
+    // oder confrims api
+
+    app.post("/orders", async (req, res) => {
+      const {
+        name,
+        address,
+        postalcode,
+        products,
+        totalAmount,
+        city,
+        orderEmail,
+        userEmail,
+        paymentMethod,
+      } = req.body;
+
+      try {
+        const newOrder = {
+          orderId: `ORD-${Date.now()}`,
+
+          customerName: name,
+          userEmail: userEmail,
+          customerEmail: orderEmail,
+          shippingAddress: {
+            address: address,
+            city: city,
+            postalCode: postalcode,
+            country: "Bangladesh",
+          },
+          products: products,
+          totalAmount: totalAmount,
+          paymentMethod: paymentMethod,
+          paymentStatus: "Unpaid",
+          orderStatus: "Pending",
+          deliveryStatus: "Pending",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        const existingOrder = await ordersCollections.findOne({
+          email: orderEmail,
+          totalAmount: totalAmount,
+        });
+        if (existingOrder) {
+          return res.send({
+            success: false,
+            message: "You have already oder this products",
+          });
+        }
+
+        const result = await ordersCollections.insertOne(newOrder);
+        const add_delete = await cartCollections.deleteMany({
+          buyerEmail: userEmail,
+        });
+
+        res.send({
+          success: true,
+          insertedId: result.insertedId,
+          message: "Order placed successfully",
+        });
+      } catch (error) {
+        res.send({
+          success: false,
+          message: "Somethings Error",
+        });
+      }
+    });
+
+    // oders get api
+    app.get("/orders", async (req, res) => {
+      const { email, status } = req.query;
+      console.log(status)
+
+      try {
+        if (!email) {
+          return res.status(400).send({
+            success: false,
+            message: "Email is required",
+          });
+        }
+
+        const query = {
+          userEmail: email,
+        };
+        if (!status || status === "All") {
+          query.deliveryStatus = "Pending";
+        }
+
+        if (status && status !== "All" ) {
+          query.deliveryStatus = status;
+        }
+
+        const result = await ordersCollections.find(query).toArray();
+
+        res.send({
+          success: true,
+          result,
+          message: "Orders fetched successfully",
+        });
+      } catch (error) {
+        console.log("Order fetch error:", error);
+
+        res.status(500).send({
+          success: false,
+          message: "Something went wrong",
+        });
       }
     });
 
