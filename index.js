@@ -163,6 +163,24 @@ async function run() {
       }
     });
 
+    // user get api
+    app.get("/users-roles", async (req, res) => {
+      const {email}= req.query;
+      try {
+        const user = await usersCollections.findOne({email}, { projection: { password: 0 } });
+        if (!user) {
+          return res.status(404).send({ message: "User not found" });
+        }
+        const role = user?.role
+        res.send({
+          success:true,
+          message: "SuccessFully Find Role In Database"
+        });
+      } catch (error) {
+        res.status(500).send({ message: "Error fetching profile" });
+      }
+    });
+
     // user log out api
     app.post("/logout", (req, res) => {
       res.clearCookie("token", {
@@ -699,7 +717,6 @@ async function run() {
     // oders get api
     app.get("/orders", async (req, res) => {
       const { email, status } = req.query;
-      console.log(status)
 
       try {
         if (!email) {
@@ -716,7 +733,7 @@ async function run() {
           query.deliveryStatus = "Pending";
         }
 
-        if (status && status !== "All" ) {
+        if (status && status !== "All") {
           query.deliveryStatus = status;
         }
 
@@ -728,8 +745,6 @@ async function run() {
           message: "Orders fetched successfully",
         });
       } catch (error) {
-        console.log("Order fetch error:", error);
-
         res.status(500).send({
           success: false,
           message: "Something went wrong",
