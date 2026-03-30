@@ -176,7 +176,6 @@ async function run() {
         const result = await usersCollections
           .find({ role: "user" }, { projection: { password: 0 } })
           .toArray();
-        console.log(result);
         res.send({
           success: true,
           result,
@@ -779,6 +778,61 @@ async function run() {
         res.status(500).send({
           success: false,
           message: "Something went wrong",
+        });
+      }
+    });
+
+    // products post api
+    app.post("/products", async (req, res) => {
+      try {
+        const productData = req.body;
+        const price = parseFloat(productData.productPrice);
+        const dPrice = parseFloat(productData.discountPrice) || 0;
+
+        let discountPercentage = 0;
+        if (dPrice > 0 && price > dPrice) {
+          discountPercentage = Math.round(((price - dPrice) / price) * 100);
+        }
+
+        const totalStock = productData.inventory.reduce(
+          (acc, curr) => acc + (parseInt(curr.quantity) || 0),
+          0,
+        );
+
+        const newProduct = {
+          title: productData.productName,
+          price: price,
+          discountPrice: dPrice,
+          discountPercentage: discountPercentage,
+          category: productData.productCategory,
+          gender: productData.productType,
+          description: productData.description,
+          img: productData.img,
+          thumbnails: productData.thumbnails || [],
+          inventory: productData.inventory, 
+          colors: productData.colors || [],
+          onSale: productData.onSale || false,
+          stock: totalStock,
+          isFeatured: productData.isFeatured || false,
+          isNewArrival: true,
+          rating: 5.0, 
+          reviewsCount: 0, 
+          totalSell: 0,
+          createdAt: new Date(),
+        };
+        const result = await productsCollections.insertOne(newProduct);
+
+        res.send({
+          success: true,
+          message: "Product initialized successfully into the Vault",
+          insertedId: result.insertedId,
+        });
+      } catch (error) {
+        console.error("Error inserting product:", error);
+        res.status(500).send({
+          success: false,
+          message: "Initialization failed. Database connection error.",
+          error: error.message,
         });
       }
     });
