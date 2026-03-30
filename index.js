@@ -162,19 +162,50 @@ async function run() {
         res.status(500).send({ message: "Error fetching profile" });
       }
     });
+    // admin  find all users
+    app.get("/users", async (req, res) => {
+      const { userRole } = req.query;
+      console.log(userRole);
+      try {
+        if (!userRole || userRole !== "admin") {
+          return res.send({
+            success: false,
+            message: "Role not found",
+          });
+        }
+        const result = await usersCollections
+          .find({ role: "user" }, { projection: { password: 0 } })
+          .toArray();
+        console.log(result);
+        res.send({
+          success: true,
+          result,
+          message: "Something Worng",
+        });
+      } catch (error) {
+        res.send({
+          success: false,
+          message: "Something Worng",
+        });
+      }
+    });
 
     // user get api
     app.get("/users-roles", async (req, res) => {
-      const {email}= req.query;
+      const { email } = req.query;
       try {
-        const user = await usersCollections.findOne({email}, { projection: { password: 0 } });
+        const user = await usersCollections.findOne(
+          { email },
+          { projection: { password: 0 } },
+        );
         if (!user) {
           return res.status(404).send({ message: "User not found" });
         }
-        const role = user?.role
+        const role = user?.role;
         res.send({
-          success:true,
-          message: "SuccessFully Find Role In Database"
+          success: true,
+          role,
+          message: "SuccessFully Find Role In Database",
         });
       } catch (error) {
         res.status(500).send({ message: "Error fetching profile" });
