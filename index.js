@@ -296,15 +296,11 @@ async function run() {
     app.get("/products/:id", async (req, res) => {
       try {
         const id = req.params.id;
-
         const query = { _id: new ObjectId(id) };
-
         const product = await productsCollections.findOne(query);
-
         if (!product) {
           return res.status(404).send({ message: "Product not found" });
         }
-
         res.send(product);
       } catch (error) {
         res.status(500).send({ message: "Server error", error });
@@ -775,12 +771,34 @@ async function run() {
           message: "Orders fetched successfully",
         });
       } catch (error) {
-        res.status(500).send({
+        res.send({
           success: false,
           message: "Something went wrong",
         });
       }
     });
+
+
+    // admin orders get
+    app.get("/admin-orders", async(req, res)=>{
+      try {
+
+        const result = await ordersCollections.find({}).toArray();
+         res.send({
+          success: true,
+          result,
+          message: "SuccessFully Find Data",
+        });
+        
+        
+      } catch (error) {
+        res.send({
+          success: false,
+          message: "Something went wrong",
+        });
+        
+      }
+    })
 
     // products post api
     app.post("/products", async (req, res) => {
