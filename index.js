@@ -908,7 +908,6 @@ async function run() {
           });
         }
 
-       
         const existingReturn = await returnsCollections.findOne({
           orderId: data.orderId,
           buyerEmail: data.buyerEmail,
@@ -920,10 +919,14 @@ async function run() {
             message: "Return request already submitted for this order.",
           });
         }
+        const ordersExits = await ordersCollections.deleteOne({
+          orderId: data.orderId,
+          userEmail: data.buyerEmail,
+        });
 
         const returnData = {
           ...data,
-          returnStatus: "Pending", 
+          returnStatus: "Pending",
           requestedAt: new Date().toISOString(),
         };
 
