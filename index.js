@@ -947,6 +947,40 @@ async function run() {
       }
     });
 
+    // retuns get api here
+    app.get("/my-returns", async (req, res) => {
+      try {
+        const { email } = req.query;
+
+        if (!email) {
+          return res.send({
+            success: false,
+            message: "Email is required",
+          });
+        }
+
+       
+        const result = await returnsCollections
+          .find({ buyerEmail: email })
+          .sort({ requestedAt: -1 }) // latest first
+          .toArray();
+
+        res.send({
+          success: true,
+          result,
+          message: "Returns data fetched successfully",
+        });
+      } catch (error) {
+        console.error("Error fetching returns:", error);
+
+        res.send({
+          success: false,
+          message: "Failed to fetch returns data",
+          error: error.message,
+        });
+      }
+    });
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
