@@ -59,6 +59,7 @@ async function run() {
     const ordersCollections = database.collection("orders");
     const cartCollections = database.collection("cart");
     const wishlistCollections = database.collection("wishlist");
+    const returnsCollections = database.collection("returns");
 
     // user register api
 
@@ -778,27 +779,67 @@ async function run() {
       }
     });
 
-
     // admin orders get
-    app.get("/admin-orders", async(req, res)=>{
+    app.get("/admin-orders", async (req, res) => {
       try {
-
         const result = await ordersCollections.find({}).toArray();
-         res.send({
+        res.send({
           success: true,
           result,
           message: "SuccessFully Find Data",
         });
-        
-        
       } catch (error) {
         res.send({
           success: false,
           message: "Something went wrong",
         });
-        
       }
-    })
+    });
+
+    // admin orders status update api here
+    app.patch("/admin-orders/:id", async (req, res) => {
+      const { id } = req.params;
+      const { orderStatus } = req.body;
+
+      try {
+        if (!id) {
+          return res.send({
+            success: false,
+            message: "Order ID not found",
+          });
+        }
+
+        if (!orderStatus) {
+          return res.send({
+            success: false,
+            message: "Order status is required",
+          });
+        }
+
+        const filter = { _id: new ObjectId(id) };
+
+        const updatedDoc = {
+          $set: {
+            orderStatus: orderStatus,
+            deliveryStatus: orderStatus,
+          },
+        };
+
+        const result = await ordersCollections.updateOne(filter, updatedDoc);
+
+        res.send({
+          success: true,
+          result,
+          message: "Order status updated successfully",
+        });
+      } catch (error) {
+        res.send({
+          success: false,
+          message: "Failed to update order status",
+          error: error.message,
+        });
+      }
+    });
 
     // products post api
     app.post("/products", async (req, res) => {
@@ -827,14 +868,14 @@ async function run() {
           description: productData.description,
           img: productData.img,
           thumbnails: productData.thumbnails || [],
-          inventory: productData.inventory, 
+          inventory: productData.inventory,
           colors: productData.colors || [],
           onSale: productData.onSale || false,
           stock: totalStock,
           isFeatured: productData.isFeatured || false,
           isNewArrival: true,
-          rating: 5.0, 
-          reviewsCount: 0, 
+          rating: 5.0,
+          reviewsCount: 0,
           totalSell: 0,
           createdAt: new Date(),
         };
@@ -848,6 +889,54 @@ async function run() {
       } catch (error) {
         console.error("Error inserting product:", error);
         res.status(500).send({
+          success: false,
+          message: "Initialization failed. Database connection error.",
+          error: error.message,
+        });
+      }
+    });
+
+    //  returns products api here
+    app.post("/returns", async (req, res) => {
+      try {
+        const data = req.body;
+
+        if (!data?.orderId || !data?.buyerEmail) {
+          return res.send({
+            success: false,
+            message: "Order ID and buyer email are required.",
+          });
+        }
+
+       
+        const existingReturn = await returnsCollections.findOne({
+          orderId: data.orderId,
+          buyerEmail: data.buyerEmail,
+        });
+
+        if (existingReturn) {
+          return res.send({
+            success: false,
+            message: "Return request already submitted for this order.",
+          });
+        }
+
+        const returnData = {
+          ...data,
+          returnStatus: "Pending", 
+          requestedAt: new Date().toISOString(),
+        };
+
+        const result = await returnsCollections.insertOne(returnData);
+
+        res.send({
+          success: true,
+          result,
+          message: "Return request submitted successfully.",
+        });
+      } catch (error) {
+        console.error("Error inserting return request:", error);
+        res.send({
           success: false,
           message: "Initialization failed. Database connection error.",
           error: error.message,
