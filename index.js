@@ -962,7 +962,7 @@ async function run() {
        
         const result = await returnsCollections
           .find({ buyerEmail: email })
-          .sort({ requestedAt: -1 }) // latest first
+          .sort({ requestedAt: -1 }) 
           .toArray();
 
         res.send({
@@ -980,6 +980,63 @@ async function run() {
         });
       }
     });
+    
+    // admin returns get api here
+    app.get("/admin-returns", async (req, res) => {
+      try {
+        const result = await returnsCollections
+          .find({})
+          .sort({ requestedAt: -1 }) 
+          .toArray();
+        res.send({
+          success: true,
+          result,
+          message: "Returns data fetched successfully",
+        });
+      } catch (error) {
+        console.error("Error fetching returns:", error);
+        res.send({
+          success: false,
+          message: "Failed to fetch returns data",
+          error: error.message,
+        });
+      }
+    });
+
+     // admin return status update api here
+     app.patch("/admin-returns/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { returnStatus } = req.body;
+        console.log(id, returnStatus)
+
+        const result = await returnsCollections.updateOne(
+          { _id: id },
+          { $set: { returnStatus } }
+        );
+        console.log(result)
+
+        if (!result.matchedCount) {
+          return res.send({
+            success: false,
+            message: "Return request not found",
+          });
+        }
+
+        res.send({
+          success: true,
+          message: "Return status updated successfully",
+        });
+      } catch (error) {
+        console.error("Error updating return status:", error);
+        res.send({
+          success: false,
+          message: "Failed to update return status",
+          error: error.message,
+        });
+      }
+
+     });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
