@@ -1090,7 +1090,7 @@ async function run() {
       try {
         const result = await cuponsCollections
           .find({})
-          .sort({ createdAt: -1 }) 
+          .sort({ createdAt: -1 })
           .toArray();
 
         res.send({
@@ -1111,11 +1111,33 @@ async function run() {
     app.patch("/coupons/:id", async (req, res) => {
       try {
         const { id } = req.params;
-        const { status,couponCode,discountValue,expiryDate,minimumOrderAmount,usageLimit,perUserLimit,applicableCategories,description } = req.body;
+        const {
+          status,
+          couponCode,
+          discountValue,
+          expiryDate,
+          minimumOrderAmount,
+          usageLimit,
+          perUserLimit,
+          applicableCategories,
+          description,
+        } = req.body;
 
         const result = await cuponsCollections.updateOne(
           { _id: id },
-          { $set: { status,couponCode,discountValue,expiryDate,minimumOrderAmount,usageLimit,perUserLimit,applicableCategories,description } }
+          {
+            $set: {
+              status,
+              couponCode,
+              discountValue,
+              expiryDate,
+              minimumOrderAmount,
+              usageLimit,
+              perUserLimit,
+              applicableCategories,
+              description,
+            },
+          },
         );
 
         if (!result.matchedCount) {
@@ -1139,7 +1161,42 @@ async function run() {
       }
     });
 
-       
+    // dashboard data api here
+    app.get("/admin-dashboard-stats", async (req, res) => {
+      try {
+        const totalUsers = await usersCollections.countDocuments();
+        const totalProducts = await productsCollections.countDocuments();
+        const totalOrders = await ordersCollections.countDocuments();
+        const totalRevenueAgg = await ordersCollections
+          .aggregate([
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$totalAmount" },
+              },
+            },
+          ])
+          .toArray();
+        const totalRevenue = totalRevenueAgg[0]?.totalRevenue || 0;
+        res.send({
+          success: true,
+          data: {
+            totalUsers,
+            totalProducts,
+            totalOrders,
+            totalRevenue,
+          },
+          message: "Dashboard data fetched successfully",
+        });
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+        res.send({
+          success: false,
+          message: "Failed to fetch dashboard data",
+          error: error.message,
+        });
+      }
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
