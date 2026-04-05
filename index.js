@@ -60,6 +60,8 @@ async function run() {
     const cartCollections = database.collection("cart");
     const wishlistCollections = database.collection("wishlist");
     const returnsCollections = database.collection("returns");
+    const customerSupportCollections = database.collection("customerSupport");
+    const cuponsCollections = database.collection("cupons");
 
     // user register api
 
@@ -959,10 +961,9 @@ async function run() {
           });
         }
 
-       
         const result = await returnsCollections
           .find({ buyerEmail: email })
-          .sort({ requestedAt: -1 }) 
+          .sort({ requestedAt: -1 })
           .toArray();
 
         res.send({
@@ -980,13 +981,13 @@ async function run() {
         });
       }
     });
-    
+
     // admin returns get api here
     app.get("/admin-returns", async (req, res) => {
       try {
         const result = await returnsCollections
           .find({})
-          .sort({ requestedAt: -1 }) 
+          .sort({ requestedAt: -1 })
           .toArray();
         res.send({
           success: true,
@@ -1003,18 +1004,17 @@ async function run() {
       }
     });
 
-     // admin return status update api here
-     app.patch("/admin-returns/:id", async (req, res) => {
+    // admin return status update api here
+    app.patch("/admin-returns/:id", async (req, res) => {
       try {
         const { id } = req.params;
         const { returnStatus } = req.body;
-        console.log(id, returnStatus)
+        console.log(id, returnStatus);
 
         const result = await returnsCollections.updateOne(
           { _id: id },
-          { $set: { returnStatus } }
+          { $set: { returnStatus } },
         );
-        console.log(result)
 
         if (!result.matchedCount) {
           return res.send({
@@ -1035,8 +1035,111 @@ async function run() {
           error: error.message,
         });
       }
+    });
 
-     });
+    // cupons post api here
+    app.post("/coupons", async (req, res) => {
+      try {
+        const data = req.body;
+
+        // validation
+        if (!data.couponCode || !data.discountValue) {
+          return res.send({
+            success: false,
+            message: "Coupon code and discount value are required",
+          });
+        }
+
+        const existing = await cuponsCollections.findOne({
+          couponCode: data.couponCode,
+        });
+
+        if (existing) {
+          return res.send({
+            success: false,
+            message: "Coupon already exists",
+          });
+        }
+
+        const couponData = {
+          ...data,
+          couponCode: data.couponCode.toUpperCase(),
+          usedCount: 0,
+          status: "Active",
+          createdAt: new Date().toISOString(),
+        };
+
+        const result = await cuponsCollections.insertOne(couponData);
+
+        res.send({
+          success: true,
+          result,
+          message: "Coupon created successfully",
+        });
+      } catch (error) {
+        console.error(error);
+        res.send({
+          success: false,
+          message: "Failed to create coupon",
+          error: error.message,
+        });
+      }
+    });
+    // cupons get api here
+    app.get("/coupons", async (req, res) => {
+      try {
+        const result = await cuponsCollections
+          .find({})
+          .sort({ createdAt: -1 }) 
+          .toArray();
+
+        res.send({
+          success: true,
+          result,
+          message: "Coupons fetched successfully",
+        });
+      } catch (error) {
+        console.error("Error fetching coupons:", error);
+
+        res.send({
+          success: false,
+          message: "Failed to fetch coupons",
+          error: error.message,
+        });
+      }
+    });
+    app.patch("/coupons/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { status,couponCode,discountValue,expiryDate,minimumOrderAmount,usageLimit,perUserLimit,applicableCategories,description } = req.body;
+
+        const result = await cuponsCollections.updateOne(
+          { _id: id },
+          { $set: { status,couponCode,discountValue,expiryDate,minimumOrderAmount,usageLimit,perUserLimit,applicableCategories,description } }
+        );
+
+        if (!result.matchedCount) {
+          return res.send({
+            success: false,
+            message: "Coupon not found",
+          });
+        }
+
+        res.send({
+          success: true,
+          message: "Coupon updated successfully",
+        });
+      } catch (error) {
+        console.error("Error updating coupon:", error);
+        res.send({
+          success: false,
+          message: "Failed to update coupon",
+          error: error.message,
+        });
+      }
+    });
+
+       
 
     await client.db("admin").command({ ping: 1 });
     console.log(
