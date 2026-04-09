@@ -788,7 +788,10 @@ async function run() {
     // admin orders get
     app.get("/admin-orders", async (req, res) => {
       try {
-        const result = await ordersCollections.find({}).sort({ createdAt: -1 }).toArray();
+        const result = await ordersCollections
+          .find({})
+          .sort({ createdAt: -1 })
+          .toArray();
         res.send({
           success: true,
           result,
@@ -901,6 +904,93 @@ async function run() {
         });
       }
     });
+
+    // admin products update api here
+  app.patch("/products/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+   
+
+    const {
+      title,
+      category,
+      gender,
+      description,
+      price,
+      discountPrice,
+      discountPercentage,
+      totalPrice,
+      totalSell,
+      stock,
+      rating,
+      reviewsCount,
+      img,
+      thumbnails,
+      colors,
+      tags,
+      inventory,
+      isFeatured,
+      isNewArrival,
+      onSale,
+      updatedAt,
+    } = req.body;
+
+    const filter = { _id: new ObjectId(id) };
+
+    // product exists kina check
+    const existingProduct = await productsCollections.findOne(filter);
+
+    if (!existingProduct) {
+      return res.status(404).send({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+
+    const updateDoc = {
+      $set: {
+        title,
+        category,
+        gender,
+        description,
+        price: Number(price) || 0,
+        discountPrice: Number(discountPrice) || 0,
+        discountPercentage: Number(discountPercentage) || 0,
+        totalPrice: Number(totalPrice) || Number(price) || 0,
+        totalSell: Number(totalSell) || 0,
+        stock: Number(stock) || 0,
+        rating: Number(rating) || 0,
+        reviewsCount: Number(reviewsCount) || 0,
+        img,
+        thumbnails: Array.isArray(thumbnails) ? thumbnails : [],
+        colors: Array.isArray(colors) ? colors : [],
+        tags: Array.isArray(tags) ? tags : [],
+        inventory: Array.isArray(inventory) ? inventory : [],
+        isFeatured: Boolean(isFeatured),
+        isNewArrival: Boolean(isNewArrival),
+        onSale: Boolean(onSale),
+        updatedAt: updatedAt || new Date().toISOString(),
+      },
+    };
+
+    const result = await productsCollections.updateOne(filter, updateDoc);
+
+    res.send({
+      success: true,
+      message: "Product updated successfully",
+      modifiedCount: result.modifiedCount,
+      matchedCount: result.matchedCount,
+    });
+  } catch (error) {
+    console.error("Error updating product:", error);
+    res.status(500).send({
+      success: false,
+      message: "Failed to update product",
+      error: error.message,
+    });
+  }
+});
 
     //  returns products api here
     app.post("/returns", async (req, res) => {
