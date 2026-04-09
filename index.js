@@ -140,6 +140,7 @@ async function run() {
 
         res.send({
           message: "Login successful",
+          success: true,
           token,
         });
       } catch (error) {
@@ -765,6 +766,9 @@ async function run() {
         if (status && status !== "All") {
           query.deliveryStatus = status;
         }
+        if (status && status === "In Transit") {
+          query.deliveryStatus = "Shipped";
+        }
 
         const result = await ordersCollections.find(query).toArray();
 
@@ -784,7 +788,7 @@ async function run() {
     // admin orders get
     app.get("/admin-orders", async (req, res) => {
       try {
-        const result = await ordersCollections.find({}).toArray();
+        const result = await ordersCollections.find({}).sort({ createdAt: -1 }).toArray();
         res.send({
           success: true,
           result,
