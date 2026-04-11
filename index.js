@@ -12,7 +12,10 @@ app.use(cookieParser());
 
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
+    origin: [
+      "http://localhost:5173",
+      "https://ecomerce-project-gules.vercel.app",
+    ],
     credentials: true,
   }),
 );
@@ -48,6 +51,7 @@ const verifyToken = (req, res, next) => {
     return res.status(401).send({ message: "Invalid token" });
   }
 };
+
 async function run() {
   try {
     await client.connect();
@@ -62,6 +66,53 @@ async function run() {
     const returnsCollections = database.collection("returns");
     const customerSupportCollections = database.collection("customerSupport");
     const cuponsCollections = database.collection("cupons");
+
+    // verify admin middleware here
+    const verifyAdmin = async (req, res, next) => {
+      // const email = req.decode_email;
+      const email = req.user?.email;
+      const query = { email };
+      const user = await usersCollections.findOne(query);
+      if (user?.role !== "admin") {
+        return res.status(403).send("forbiden access");
+      }
+      next();
+    };
+    // verify user middleware here
+    const verifyUser = async (req, res, next) => {
+      // const email = req.decode_email;
+      const email = req.user?.email;
+      const query = { email };
+      const user = await usersCollections.findOne(query);
+      if (user?.role !== "user") {
+        return res.status(403).send("forbiden access");
+      }
+      next();
+    };
+
+    // verify multiple roles middleware here
+
+    const verifyRoles = (...roles) => {
+      return async (req, res, next) => {
+        try {
+          const email = req.user?.email;
+
+          if (!email) {
+            return res.status(401).send("Unauthorized");
+          }
+
+          const user = await usersCollections.findOne({ email });
+
+          if (!roles.includes(user?.role)) {
+            return res.status(403).send("Forbidden access");
+          }
+
+          next();
+        } catch (error) {
+          res.status(500).send("Server error");
+        }
+      };
+    };
 
     // user register api
 
@@ -135,7 +186,9 @@ async function run() {
         res.cookie("token", token, {
           httpOnly: true,
           secure: true,
-          sameSite: "none",
+          sameSite: "strict",
+          // sameSite: "none",
+          maxAge: 24 * 60 * 60 * 1000,
         });
 
         res.send({
@@ -150,6 +203,8 @@ async function run() {
     });
 
     // view profile get api
+
+    // this is vercel probelm
     app.get("/profile", verifyToken, async (req, res) => {
       try {
         const user = await usersCollections.findOne(
@@ -166,10 +221,10 @@ async function run() {
         res.status(500).send({ message: "Error fetching profile" });
       }
     });
+
     // admin  find all users
-    app.get("/users", async (req, res) => {
+    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
       const { userRole } = req.query;
-      console.log(userRole);
       try {
         if (!userRole || userRole !== "admin") {
           return res.send({
@@ -194,7 +249,7 @@ async function run() {
     });
 
     // user get api
-    app.get("/users-roles", async (req, res) => {
+    app.get("/users-roles", verifyToken, async (req, res) => {
       const { email } = req.query;
       try {
         const user = await usersCollections.findOne(
@@ -368,7 +423,7 @@ async function run() {
     });
 
     //cart data show
-    app.get("/cart", async (req, res) => {
+    app.get("/cart", verifyToken, async (req, res) => {
       const { email } = req.query;
       try {
         const result = await cartCollections
@@ -381,7 +436,7 @@ async function run() {
     });
 
     // cartpage get api
-    app.get("/cartpage", async (req, res) => {
+    app.get("/cartpage", verifyToken, verifyUser, async (req, res) => {
       const { email } = req.query;
       try {
         const result = await cartCollections
@@ -394,7 +449,7 @@ async function run() {
     });
 
     // cart page delete api
-    app.delete("/cartpage", async (req, res) => {
+    app.delete("/cartpage", verifyToken, verifyUser, async (req, res) => {
       const { id } = req.query;
       try {
         const data = await cartCollections.deleteOne({ _id: new ObjectId(id) });
@@ -408,7 +463,7 @@ async function run() {
     });
 
     // cart id price & quantity update api here
-    app.patch("/cart/:id", async (req, res) => {
+    app.patch("/cart/:id", verifyToken, verifyUser, async (req, res) => {
       const id = req.params.id;
       const { quantity } = req.body;
 
@@ -446,7 +501,7 @@ async function run() {
 
     // add to cart api
 
-    app.post("/add-to-cart", async (req, res) => {
+    app.post("/add-to-cart", verifyToken, verifyUser, async (req, res) => {
       const body = req.body;
       try {
         const {
@@ -556,20 +611,9 @@ async function run() {
       }
     });
 
-    // chechkout api
-    app.get("/checkout", async (req, res) => {
-      try {
-        res.send({
-          success: true,
-        });
-      } catch (error) {
-        console.log(error);
-      }
-    });
-
     // here is wishlist api
 
-    app.post("/wishlist", async (req, res) => {
+    app.post("/wishlist", verifyToken, verifyRoles("user","admin"), async (req, res) => {
       const {
         productId,
         userEmail,
@@ -589,7 +633,6 @@ async function run() {
           productCategory,
           wishlistAt: new Date(),
         };
-        console.log(userData);
         const exitsProducts = await wishlistCollections.findOne({
           productId,
           userEmail,
@@ -613,7 +656,7 @@ async function run() {
     });
 
     // wisth list get api
-    app.get("/wishlist-data", async (req, res) => {
+    app.get("/wishlist-data", verifyToken, verifyRoles("user","admin"), async (req, res) => {
       const { email } = req.query;
 
       try {
@@ -632,7 +675,7 @@ async function run() {
     });
 
     // wish delete api
-    app.delete("/wishlist-data", async (req, res) => {
+    app.delete("/wishlist-data", verifyToken, verifyUser, async (req, res) => {
       const { id, email, all } = req.query;
 
       try {
@@ -662,7 +705,7 @@ async function run() {
       }
     });
 
-    app.get("/wishlist-show", async (req, res) => {
+    app.get("/wishlist-show", verifyToken, async (req, res) => {
       const { email } = req.query;
 
       try {
@@ -682,7 +725,7 @@ async function run() {
 
     // oder confrims api
 
-    app.post("/orders", async (req, res) => {
+    app.post("/orders", verifyToken, async (req, res) => {
       const {
         name,
         address,
@@ -721,6 +764,7 @@ async function run() {
           userEmail: userEmail,
           totalAmount: totalAmount,
         });
+
         if (existingOrder) {
           return res.send({
             success: false,
@@ -730,7 +774,7 @@ async function run() {
 
         const result = await ordersCollections.insertOne(newOrder);
         const add_delete = await cartCollections.deleteMany({
-          buyerEmail: userEmail,
+          userEmail: userEmail,
         });
 
         res.send({
@@ -747,7 +791,7 @@ async function run() {
     });
 
     // oders get api
-    app.get("/orders", async (req, res) => {
+    app.get("/orders", verifyToken, async (req, res) => {
       const { email, status } = req.query;
 
       try {
@@ -788,7 +832,7 @@ async function run() {
     });
 
     // admin orders get
-    app.get("/admin-orders", async (req, res) => {
+    app.get("/admin-orders", verifyAdmin, verifyToken, async (req, res) => {
       try {
         const result = await ordersCollections
           .find({})
@@ -808,52 +852,57 @@ async function run() {
     });
 
     // admin orders status update api here
-    app.patch("/admin-orders/:id", async (req, res) => {
-      const { id } = req.params;
-      const { orderStatus } = req.body;
+    app.patch(
+      "/admin-orders/:id",
+      verifyAdmin,
+      verifyToken,
+      async (req, res) => {
+        const { id } = req.params;
+        const { orderStatus } = req.body;
 
-      try {
-        if (!id) {
-          return res.send({
+        try {
+          if (!id) {
+            return res.send({
+              success: false,
+              message: "Order ID not found",
+            });
+          }
+
+          if (!orderStatus) {
+            return res.send({
+              success: false,
+              message: "Order status is required",
+            });
+          }
+
+          const filter = { _id: new ObjectId(id) };
+
+          const updatedDoc = {
+            $set: {
+              orderStatus: orderStatus,
+              deliveryStatus: orderStatus,
+            },
+          };
+
+          const result = await ordersCollections.updateOne(filter, updatedDoc);
+
+          res.send({
+            success: true,
+            result,
+            message: "Order status updated successfully",
+          });
+        } catch (error) {
+          res.send({
             success: false,
-            message: "Order ID not found",
+            message: "Failed to update order status",
+            error: error.message,
           });
         }
-
-        if (!orderStatus) {
-          return res.send({
-            success: false,
-            message: "Order status is required",
-          });
-        }
-
-        const filter = { _id: new ObjectId(id) };
-
-        const updatedDoc = {
-          $set: {
-            orderStatus: orderStatus,
-            deliveryStatus: orderStatus,
-          },
-        };
-
-        const result = await ordersCollections.updateOne(filter, updatedDoc);
-
-        res.send({
-          success: true,
-          result,
-          message: "Order status updated successfully",
-        });
-      } catch (error) {
-        res.send({
-          success: false,
-          message: "Failed to update order status",
-          error: error.message,
-        });
-      }
-    });
+      },
+    );
 
     // products post api
-    app.post("/products", async (req, res) => {
+    app.post("/products", verifyToken, verifyAdmin, async (req, res) => {
       try {
         const productData = req.body;
         const price = parseFloat(productData.productPrice);
@@ -908,7 +957,7 @@ async function run() {
     });
 
     // admin products update api here
-    app.patch("/products/:id", async (req, res) => {
+    app.patch("/products/:id", verifyToken, verifyAdmin, async (req, res) => {
       try {
         const { id } = req.params;
 
@@ -992,7 +1041,7 @@ async function run() {
     });
 
     //  returns products api here
-    app.post("/returns", async (req, res) => {
+    app.post("/returns", verifyToken, verifyUser, async (req, res) => {
       try {
         const data = req.body;
 
@@ -1043,7 +1092,7 @@ async function run() {
     });
 
     // retuns get api here
-    app.get("/my-returns", async (req, res) => {
+    app.get("/my-returns", verifyToken, verifyUser, async (req, res) => {
       try {
         const { email } = req.query;
 
@@ -1076,7 +1125,7 @@ async function run() {
     });
 
     // admin returns get api here
-    app.get("/admin-returns", async (req, res) => {
+    app.get("/admin-returns", verifyToken, verifyAdmin, async (req, res) => {
       try {
         const result = await returnsCollections
           .find({})
@@ -1098,40 +1147,45 @@ async function run() {
     });
 
     // admin return status update api here
-    app.patch("/admin-returns/:id", async (req, res) => {
-      try {
-        const { id } = req.params;
-        const { returnStatus } = req.body;
-        console.log(id, returnStatus);
+    app.patch(
+      "/admin-returns/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const { id } = req.params;
+          const { returnStatus } = req.body;
+          console.log(id, returnStatus);
 
-        const result = await returnsCollections.updateOne(
-          { _id: id },
-          { $set: { returnStatus } },
-        );
+          const result = await returnsCollections.updateOne(
+            { _id: id },
+            { $set: { returnStatus } },
+          );
 
-        if (!result.matchedCount) {
-          return res.send({
+          if (!result.matchedCount) {
+            return res.send({
+              success: false,
+              message: "Return request not found",
+            });
+          }
+
+          res.send({
+            success: true,
+            message: "Return status updated successfully",
+          });
+        } catch (error) {
+          console.error("Error updating return status:", error);
+          res.send({
             success: false,
-            message: "Return request not found",
+            message: "Failed to update return status",
+            error: error.message,
           });
         }
-
-        res.send({
-          success: true,
-          message: "Return status updated successfully",
-        });
-      } catch (error) {
-        console.error("Error updating return status:", error);
-        res.send({
-          success: false,
-          message: "Failed to update return status",
-          error: error.message,
-        });
-      }
-    });
+      },
+    );
 
     // cupons post api here
-    app.post("/coupons", async (req, res) => {
+    app.post("/coupons", verifyToken, verifyAdmin, async (req, res) => {
       try {
         const data = req.body;
 
@@ -1179,7 +1233,7 @@ async function run() {
       }
     });
     // cupons get api here
-    app.get("/coupons", async (req, res) => {
+    app.get("/coupons", verifyToken, verifyAdmin, async (req, res) => {
       try {
         const result = await cuponsCollections
           .find({})
@@ -1201,7 +1255,7 @@ async function run() {
         });
       }
     });
-    app.patch("/coupons/:id", async (req, res) => {
+    app.patch("/coupons/:id", verifyToken, verifyAdmin, async (req, res) => {
       try {
         const { id } = req.params;
         const {
@@ -1254,42 +1308,126 @@ async function run() {
       }
     });
 
-    // dashboard data api here
-    app.get("/admin-dashboard-stats", async (req, res) => {
+    // cupons uses api here
+    app.post("/apply-coupon", verifyToken, verifyAdmin, async (req, res) => {
+      const { code, totalAmount, userEmail } = req.body;
+
       try {
-        const totalUsers = await usersCollections.countDocuments();
-        const totalProducts = await productsCollections.countDocuments();
-        const totalOrders = await ordersCollections.countDocuments();
-        const totalRevenueAgg = await ordersCollections
-          .aggregate([
-            {
-              $group: {
-                _id: null,
-                totalRevenue: { $sum: "$totalAmount" },
-              },
-            },
-          ])
-          .toArray();
-        const totalRevenue = totalRevenueAgg[0]?.totalRevenue || 0;
-        res.send({
+        const coupon = await cuponsCollections.findOne({ couponCode: code });
+
+        if (!coupon) {
+          return res.send({ success: false, message: "Invalid coupon" });
+        }
+
+        if (coupon.status !== "Active") {
+          return res.send({ success: false, message: "Coupon inactive" });
+        }
+
+        if (new Date() > new Date(coupon.expiryDate)) {
+          return res.send({ success: false, message: "Coupon expired" });
+        }
+
+        if (totalAmount < coupon.minimumOrderAmount) {
+          return res.send({
+            success: false,
+            message: `Minimum order ${coupon.minimumOrderAmount} required`,
+          });
+        }
+
+        if (coupon.usedCount >= coupon.usageLimit) {
+          return res.send({
+            success: false,
+            message: "Coupon usage limit exceeded",
+          });
+        }
+
+        // const userUsed = await ordersCollections.countDocuments({
+        //   userEmail,
+        //   couponCode: code,
+        // });
+
+        // if (userUsed >= coupon.perUserLimit) {
+        //   return res.send({
+        //     success: false,
+        //     message: "You have already used this coupon",
+        //   });
+        // }
+
+        const updateResult = await cuponsCollections.updateOne(
+          { _id: coupon._id },
+          { $inc: { usedCount: 1 } },
+        );
+
+        let discount = 0;
+
+        if (coupon.discountType === "percentage") {
+          discount = (totalAmount * coupon.discountValue) / 100;
+          if (discount > coupon.maximumDiscountAmount) {
+            discount = coupon.maximumDiscountAmount;
+          }
+        } else {
+          discount = coupon.discountValue;
+        }
+
+        if (discount > totalAmount) {
+          discount = totalAmount;
+        }
+
+        return res.send({
           success: true,
-          data: {
-            totalUsers,
-            totalProducts,
-            totalOrders,
-            totalRevenue,
-          },
-          message: "Dashboard data fetched successfully",
+          discount,
+          message: "Coupon applied successfully",
         });
       } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-        res.send({
+        console.error("Error applying coupon:", error);
+        return res.send({
           success: false,
-          message: "Failed to fetch dashboard data",
-          error: error.message,
+          message: "Failed to apply coupon",
         });
       }
     });
+
+    // dashboard data api here
+    app.get(
+      "/admin-dashboard-stats",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const totalUsers = await usersCollections.countDocuments();
+          const totalProducts = await productsCollections.countDocuments();
+          const totalOrders = await ordersCollections.countDocuments();
+          const totalRevenueAgg = await ordersCollections
+            .aggregate([
+              {
+                $group: {
+                  _id: null,
+                  totalRevenue: { $sum: "$totalAmount" },
+                },
+              },
+            ])
+            .toArray();
+          const totalRevenue = totalRevenueAgg[0]?.totalRevenue || 0;
+          res.send({
+            success: true,
+            data: {
+              totalUsers,
+              totalProducts,
+              totalOrders,
+              totalRevenue,
+            },
+            message: "Dashboard data fetched successfully",
+          });
+        } catch (error) {
+          console.error("Error fetching dashboard data:", error);
+          res.send({
+            success: false,
+            message: "Failed to fetch dashboard data",
+            error: error.message,
+          });
+        }
+      },
+    );
 
     await client.db("admin").command({ ping: 1 });
     console.log(
@@ -1303,7 +1441,7 @@ async function run() {
 run().catch(console.dir);
 
 app.get("/", (req, res) => {
-  res.send("Hello World!");
+  res.send("Server is running!");
 });
 
 app.listen(port, () => {
