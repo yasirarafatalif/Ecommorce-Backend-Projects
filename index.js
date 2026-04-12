@@ -8,17 +8,17 @@ const cookieParser = require("cookie-parser");
 
 require("dotenv").config();
 app.use(express.json());
-app.use(cookieParser());
+
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://ecomerce-project-gules.vercel.app",
-    ],
+    // origin: "https://ecommrecfronteend.vercel.app",
+    origin: "http://localhost:5173",
     credentials: true,
   }),
 );
+
+app.use(cookieParser());
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASSWORD}@cluster0.zgnatwl.mongodb.net/?appName=Cluster0`;
@@ -64,7 +64,7 @@ async function run() {
     const cartCollections = database.collection("cart");
     const wishlistCollections = database.collection("wishlist");
     const returnsCollections = database.collection("returns");
-    const customerSupportCollections = database.collection("customerSupport");
+    // const customerSupportCollections = database.collection("customerSupport");
     const cuponsCollections = database.collection("cupons");
 
     // verify admin middleware here
@@ -91,7 +91,6 @@ async function run() {
     };
 
     // verify multiple roles middleware here
-
     const verifyRoles = (...roles) => {
       return async (req, res, next) => {
         try {
@@ -128,7 +127,7 @@ async function run() {
         // check existing user
         const existingUser = await usersCollections.findOne({ email });
         if (existingUser) {
-          return res.send({ message: "User already exists" });
+          return res.send({ success: false, message: "User already exists" });
         }
 
         // hash password
@@ -141,10 +140,11 @@ async function run() {
           role: "user",
           createdAt: new Date(),
         };
+         
 
         const userInsert = await usersCollections.insertOne(usersData);
         res.send({
-          userInsert,
+          success: true,
           message: "User registered successfully",
         });
       } catch (error) {
@@ -157,7 +157,6 @@ async function run() {
 
     app.post("/login", async (req, res) => {
       const { email, password } = req.body;
-
       try {
         // validation
         if (!email || !password) {
@@ -186,9 +185,10 @@ async function run() {
         res.cookie("token", token, {
           httpOnly: true,
           secure: true,
-          sameSite: "strict",
+          // for localhost
+          sameSite: "lax",
+          //for vercel
           // sameSite: "none",
-          maxAge: 24 * 60 * 60 * 1000,
         });
 
         res.send({
@@ -202,10 +202,93 @@ async function run() {
       }
     });
 
+        // user log out api
+    app.post("/logout", (req, res) => {
+      res.clearCookie("token", {
+          httpOnly: true,
+          secure: true,
+           // for localhost
+          sameSite: "lax",
+          //for vercel
+          // sameSite: "none",
+        });
+
+      res.send({ message: "Logged out successfully" });
+    });
+
+    // user password change api here
+    app.patch("/change-password", verifyToken, async (req, res) => {
+      const { email } = req?.user;
+      const { currentPassword, newPassword } = req.body;
+      try {
+        const user = await usersCollections.findOne({ email });
+        if (!user) {
+          return res.status(404).send({ message: "User not found" });
+        }
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+          return res.status(401).send({ message: "Current password is incorrect" });
+        }
+        const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+        const updateDoc = {
+          $set: {
+            password: hashedNewPassword,
+          },
+        };
+        const result = await usersCollections.updateOne({ email },
+          updateDoc
+        );
+        res.send({
+          success: true,
+          message: "Password changed successfully",
+          modifiedCount: result.modifiedCount,
+          matchedCount: result.matchedCount,
+        });
+      } catch (error) {
+        console.error("Error changing password:", error);
+        res.send({
+          success: false,
+          message: "Failed to change password",
+          error: error.message,
+        });
+      }
+      });
+      
+
+
+    // user update image api here 
+    app.patch("/update-profile", verifyToken, async (req, res) => { 
+      const { email } = req?.user;
+      const { avatar } = req.body;
+      try {
+        const updateDoc = {
+          $set: {
+            avatar,
+          },
+        };
+        const result = await usersCollections.updateOne({ email },
+          updateDoc
+        );
+        res.send({
+          success: true,
+          message: "Profile updated successfully",
+          modifiedCount: result.modifiedCount,
+          matchedCount: result.matchedCount,
+        });
+      } catch (error) {
+        console.error("Error updating profile:", error);
+        res.send({
+          success: false,
+          message: "Failed to update profile",
+          error: error.message,
+        });
+      }
+      });
+
     // view profile get api
 
     // this is vercel probelm
-    app.get("/profile", verifyToken, async (req, res) => {
+    app.get("/profile", verifyToken,verifyRoles("user","admin"), async (req, res) => {
       try {
         const user = await usersCollections.findOne(
           { email: req.user.email },
@@ -268,17 +351,6 @@ async function run() {
       } catch (error) {
         res.status(500).send({ message: "Error fetching profile" });
       }
-    });
-
-    // user log out api
-    app.post("/logout", (req, res) => {
-      res.clearCookie("token", {
-        httpOnly: true,
-        secure: false,
-        sameSite: "lax",
-      });
-
-      res.send({ message: "Logged out successfully" });
     });
 
     // here we will create a get api to get all the products from the database
@@ -436,7 +508,7 @@ async function run() {
     });
 
     // cartpage get api
-    app.get("/cartpage", verifyToken, verifyUser, async (req, res) => {
+    app.get("/cartpage", verifyToken,  async (req, res) => {
       const { email } = req.query;
       try {
         const result = await cartCollections
@@ -675,7 +747,7 @@ async function run() {
     });
 
     // wish delete api
-    app.delete("/wishlist-data", verifyToken, verifyUser, async (req, res) => {
+    app.delete("/wishlist-data", verifyToken, verifyRoles("user","admin"), async (req, res) => {
       const { id, email, all } = req.query;
 
       try {
@@ -832,7 +904,7 @@ async function run() {
     });
 
     // admin orders get
-    app.get("/admin-orders", verifyAdmin, verifyToken, async (req, res) => {
+    app.get("/admin-orders",  verifyToken, verifyAdmin, async (req, res) => {
       try {
         const result = await ordersCollections
           .find({})
@@ -854,8 +926,8 @@ async function run() {
     // admin orders status update api here
     app.patch(
       "/admin-orders/:id",
-      verifyAdmin,
       verifyToken,
+      verifyAdmin,
       async (req, res) => {
         const { id } = req.params;
         const { orderStatus } = req.body;
@@ -1154,12 +1226,12 @@ async function run() {
       async (req, res) => {
         try {
           const { id } = req.params;
-          const { returnStatus } = req.body;
-          console.log(id, returnStatus);
+          const { returnStatus,deliveryStatus } = req.body;
+      
 
           const result = await returnsCollections.updateOne(
             { _id: id },
-            { $set: { returnStatus } },
+            { $set: { returnStatus, deliveryStatus } },
           );
 
           if (!result.matchedCount) {
