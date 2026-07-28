@@ -8,28 +8,25 @@ const cookieParser = require("cookie-parser");
 
 require("dotenv").config();
 app.use(express.json());
-
+app.use(cookieParser());
 
 app.use(
   cors({
-    // origin: "https://ecommrecfronteend.vercel.app",
+    origin: "https://ecommrecfronteend.vercel.app",
     origin: "http://localhost:5173",
     credentials: true,
   }),
 );
 
-app.use(cookieParser());
-
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASSWORD}@cluster0.zgnatwl.mongodb.net/?appName=Cluster0`;
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  },
+  }
 });
 
 const verifyToken = (req, res, next) => {
@@ -55,7 +52,7 @@ const verifyToken = (req, res, next) => {
 async function run() {
   try {
     await client.connect();
-
+    console.log("MongoDB Connected");
     // here we will create a database and collection and add some data to it
     const database = client.db(process.env.DATABASE_NAME);
     const productsCollections = database.collection("products");
@@ -117,7 +114,7 @@ async function run() {
 
     app.post("/register", async (req, res) => {
       const { email, password, name } = req.body;
-
+  
       try {
         // validation
         if (!email || !password || !name) {
@@ -140,7 +137,6 @@ async function run() {
           role: "user",
           createdAt: new Date(),
         };
-         
 
         const userInsert = await usersCollections.insertOne(usersData);
         res.send({
@@ -186,9 +182,9 @@ async function run() {
           httpOnly: true,
           secure: true,
           // for localhost
-          sameSite: "lax",
+          // sameSite: "lax",
           //for vercel
-          // sameSite: "none",
+          sameSite: "none",
         });
 
         res.send({
@@ -202,16 +198,16 @@ async function run() {
       }
     });
 
-        // user log out api
+    // user log out api
     app.post("/logout", (req, res) => {
       res.clearCookie("token", {
-          httpOnly: true,
-          secure: true,
-           // for localhost
-          sameSite: "lax",
-          //for vercel
-          // sameSite: "none",
-        });
+        httpOnly: true,
+        secure: true,
+        // for localhost
+        // sameSite: "lax",
+        //for vercel
+        sameSite: "none",
+      });
 
       res.send({ message: "Logged out successfully" });
     });
@@ -227,7 +223,9 @@ async function run() {
         }
         const isMatch = await bcrypt.compare(currentPassword, user.password);
         if (!isMatch) {
-          return res.status(401).send({ message: "Current password is incorrect" });
+          return res
+            .status(401)
+            .send({ message: "Current password is incorrect" });
         }
         const hashedNewPassword = await bcrypt.hash(newPassword, 10);
         const updateDoc = {
@@ -235,9 +233,7 @@ async function run() {
             password: hashedNewPassword,
           },
         };
-        const result = await usersCollections.updateOne({ email },
-          updateDoc
-        );
+        const result = await usersCollections.updateOne({ email }, updateDoc);
         res.send({
           success: true,
           message: "Password changed successfully",
@@ -252,12 +248,10 @@ async function run() {
           error: error.message,
         });
       }
-      });
-      
+    });
 
-
-    // user update image api here 
-    app.patch("/update-profile", verifyToken, async (req, res) => { 
+    // user update image api here
+    app.patch("/update-profile", verifyToken, async (req, res) => {
       const { email } = req?.user;
       const { avatar } = req.body;
       try {
@@ -266,9 +260,7 @@ async function run() {
             avatar,
           },
         };
-        const result = await usersCollections.updateOne({ email },
-          updateDoc
-        );
+        const result = await usersCollections.updateOne({ email }, updateDoc);
         res.send({
           success: true,
           message: "Profile updated successfully",
@@ -283,27 +275,32 @@ async function run() {
           error: error.message,
         });
       }
-      });
+    });
 
     // view profile get api
 
     // this is vercel probelm
-    app.get("/profile", verifyToken,verifyRoles("user","admin"), async (req, res) => {
-      try {
-        const user = await usersCollections.findOne(
-          { email: req.user.email },
-          { projection: { password: 0 } },
-        );
+    app.get(
+      "/profile",
+      verifyToken,
+      verifyRoles("user", "admin"),
+      async (req, res) => {
+        try {
+          const user = await usersCollections.findOne(
+            { email: req.user.email },
+            { projection: { password: 0 } },
+          );
 
-        if (!user) {
-          return res.status(404).send({ message: "User not found" });
+          if (!user) {
+            return res.status(404).send({ message: "User not found" });
+          }
+
+          res.send(user);
+        } catch (error) {
+          res.status(500).send({ message: "Error fetching profile" });
         }
-
-        res.send(user);
-      } catch (error) {
-        res.status(500).send({ message: "Error fetching profile" });
-      }
-    });
+      },
+    );
 
     // admin  find all users
     app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
@@ -508,7 +505,7 @@ async function run() {
     });
 
     // cartpage get api
-    app.get("/cartpage", verifyToken,  async (req, res) => {
+    app.get("/cartpage", verifyToken, async (req, res) => {
       const { email } = req.query;
       try {
         const result = await cartCollections
@@ -685,97 +682,112 @@ async function run() {
 
     // here is wishlist api
 
-    app.post("/wishlist", verifyToken, verifyRoles("user","admin"), async (req, res) => {
-      const {
-        productId,
-        userEmail,
-        productPrice,
-        productImg,
-        productTitle,
-        productCategory,
-      } = req.body;
-
-      try {
-        const userData = {
+    app.post(
+      "/wishlist",
+      verifyToken,
+      verifyRoles("user", "admin"),
+      async (req, res) => {
+        const {
           productId,
           userEmail,
           productPrice,
           productImg,
           productTitle,
           productCategory,
-          wishlistAt: new Date(),
-        };
-        const exitsProducts = await wishlistCollections.findOne({
-          productId,
-          userEmail,
-        });
-        if (exitsProducts) {
-          return res.send({
-            success: false,
-            message: "This Product You Have Alreday Added In Wishlist",
-          });
-        }
+        } = req.body;
 
-        const result = await wishlistCollections.insertOne(userData);
-        res.send({
-          success: true,
-          result,
-          message: "Added In Wishlist",
-        });
-      } catch (error) {
-        res.status(401).send({ message: "Server error", error });
-      }
-    });
+        try {
+          const userData = {
+            productId,
+            userEmail,
+            productPrice,
+            productImg,
+            productTitle,
+            productCategory,
+            wishlistAt: new Date(),
+          };
+          const exitsProducts = await wishlistCollections.findOne({
+            productId,
+            userEmail,
+          });
+          if (exitsProducts) {
+            return res.send({
+              success: false,
+              message: "This Product You Have Alreday Added In Wishlist",
+            });
+          }
+
+          const result = await wishlistCollections.insertOne(userData);
+          res.send({
+            success: true,
+            result,
+            message: "Added In Wishlist",
+          });
+        } catch (error) {
+          res.status(401).send({ message: "Server error", error });
+        }
+      },
+    );
 
     // wisth list get api
-    app.get("/wishlist-data", verifyToken, verifyRoles("user","admin"), async (req, res) => {
-      const { email } = req.query;
+    app.get(
+      "/wishlist-data",
+      verifyToken,
+      verifyRoles("user", "admin"),
+      async (req, res) => {
+        const { email } = req.query;
 
-      try {
-        if (!email) {
-          return res.status(401).send({ message: "Email required" });
+        try {
+          if (!email) {
+            return res.status(401).send({ message: "Email required" });
+          }
+
+          const findWishlist = await wishlistCollections
+            .find({ userEmail: email })
+            .toArray();
+
+          res.send(findWishlist);
+        } catch (error) {
+          res.status(500).send({ message: "Server error", error });
         }
-
-        const findWishlist = await wishlistCollections
-          .find({ userEmail: email })
-          .toArray();
-
-        res.send(findWishlist);
-      } catch (error) {
-        res.status(500).send({ message: "Server error", error });
-      }
-    });
+      },
+    );
 
     // wish delete api
-    app.delete("/wishlist-data", verifyToken, verifyRoles("user","admin"), async (req, res) => {
-      const { id, email, all } = req.query;
+    app.delete(
+      "/wishlist-data",
+      verifyToken,
+      verifyRoles("user", "admin"),
+      async (req, res) => {
+        const { id, email, all } = req.query;
 
-      try {
-        if (!email) {
-          return res.status(400).send({ message: "Email required" });
-        }
+        try {
+          if (!email) {
+            return res.status(400).send({ message: "Email required" });
+          }
 
-        let result;
+          let result;
 
-        if (all === "true") {
-          result = await wishlistCollections.deleteMany({
-            userEmail: email,
+          if (all === "true") {
+            result = await wishlistCollections.deleteMany({
+              userEmail: email,
+            });
+          } else {
+            result = await wishlistCollections.deleteOne({
+              _id: new ObjectId(id),
+              userEmail: email,
+            });
+          }
+
+          res.send({
+            deletedCount: result.deletedCount,
+            message: "Wishlist updated",
           });
-        } else {
-          result = await wishlistCollections.deleteOne({
-            _id: new ObjectId(id),
-            userEmail: email,
-          });
+        } catch (error) {
+          res.status(500).send({ message: "Server error", error });
         }
-
-        res.send({
-          deletedCount: result.deletedCount,
-          message: "Wishlist updated",
-        });
-      } catch (error) {
-        res.status(500).send({ message: "Server error", error });
-      }
-    });
+      },
+    );
 
     app.get("/wishlist-show", verifyToken, async (req, res) => {
       const { email } = req.query;
@@ -904,7 +916,7 @@ async function run() {
     });
 
     // admin orders get
-    app.get("/admin-orders",  verifyToken, verifyAdmin, async (req, res) => {
+    app.get("/admin-orders", verifyToken, verifyAdmin, async (req, res) => {
       try {
         const result = await ordersCollections
           .find({})
@@ -1226,8 +1238,7 @@ async function run() {
       async (req, res) => {
         try {
           const { id } = req.params;
-          const { returnStatus,deliveryStatus } = req.body;
-      
+          const { returnStatus, deliveryStatus } = req.body;
 
           const result = await returnsCollections.updateOne(
             { _id: id },
@@ -1510,11 +1521,14 @@ async function run() {
     // await client.close();
   }
 }
-run().catch(console.dir);
+
 
 app.get("/", (req, res) => {
   res.send("Server is running!");
 });
+run().catch(console.dir);
+
+
 
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
