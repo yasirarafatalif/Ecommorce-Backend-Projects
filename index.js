@@ -12,14 +12,15 @@ app.use(cookieParser());
 
 app.use(
   cors({
-    origin: "https://ecommrecfronteend.vercel.app",
-    origin: "http://localhost:5173",
+    origin: `${process.env.URL}`,
+    // origin: "http://localhost:5173",
     credentials: true,
   }),
 );
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASSWORD}@cluster0.zgnatwl.mongodb.net/?appName=Cluster0`;
+const uri =process.env.URI;
+// const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASSWORD}@cluster0.zgnatwl.mongodb.net/?appName=Cluster0`;
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -51,8 +52,8 @@ const verifyToken = (req, res, next) => {
 
 async function run() {
   try {
-    await client.connect();
-    console.log("MongoDB Connected");
+    // await client.connect();
+    // console.log("MongoDB Connected");
     // here we will create a database and collection and add some data to it
     const database = client.db(process.env.DATABASE_NAME);
     const productsCollections = database.collection("products");
@@ -1512,10 +1513,10 @@ async function run() {
       },
     );
 
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!",
-    );
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!",
+    // );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
